@@ -11,27 +11,24 @@
 }
 
 /* ============================================================
-   TABS
+   TABS (UPDATED FOR RESPONSIVENESS)
    ============================================================ */
 
 .rpt-tabs {
   display: flex;
-  gap: 4px;
   padding: 0 24px;
   background: #ffffff;
   border-bottom: 1px solid #e5e7eb;
-  overflow-x: auto;
-}
-
-.rpt-tabs::-webkit-scrollbar {
-  height: 0;
+  /* Removed overflow-x so tabs don't hide */
+  width: 100%;
 }
 
 .rpt-tab {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 14px 16px;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 10px;
   background: none;
   border: none;
   font-size: 13px;
@@ -42,6 +39,9 @@
   position: relative;
   transition: color 0.15s;
   white-space: nowrap;
+
+  /* ✅ Forces tabs to share available width equally */
+  flex: 1;
 }
 
 .rpt-tab:hover {
@@ -56,8 +56,8 @@
   content: "";
   position: absolute;
   bottom: -1px;
-  left: 16px;
-  right: 16px;
+  left: 10%;
+  right: 10%;
   height: 2px;
   background: #0f6b5c;
 }
@@ -553,7 +553,6 @@
   letter-spacing: -0.02em;
 }
 
-
 .rpt-cat-dot {
   display: inline-block;
   width: 10px;
@@ -582,6 +581,22 @@
   border-radius: 12px;
   font-weight: 600;
   font-size: 14px;
+}
+
+/* ============================================================
+   CHART FOCUS OVERRIDES
+   ============================================================ */
+
+/* Remove focus outlines from Recharts SVG elements */
+.recharts-wrapper,
+.recharts-surface,
+.recharts-bar-rectangle,
+.recharts-rectangle {
+  outline: none !important;
+}
+
+.recharts-wrapper *:focus {
+  outline: none !important;
 }
 
 /* ============================================================

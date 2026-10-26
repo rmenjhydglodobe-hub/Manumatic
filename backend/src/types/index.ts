@@ -13,6 +13,7 @@ export interface User {
   email: string;
   created_at: Date;
   last_login: Date | null;
+  is_active: number;
 }
 
 export interface UserPublic {
@@ -30,9 +31,12 @@ export interface Part {
   category: string;
   description: string | null;
   price: number;
+  cost_price: number; // Added
+  markup_percent: number; // Added
   reorder_level: number;
   quantity: number;
   location: string | null;
+  supplier: string | null; // Added
   image: string | null;
   created_at: Date;
 }
@@ -86,9 +90,12 @@ export interface CreatePartBody {
   category: string;
   description?: string;
   price: number | string;
+  cost_price?: number | string; // Added
+  markup_percent?: number | string; // Added
   reorder_level?: number | string;
   quantity?: number | string;
   location?: string;
+  supplier?: string; // Added
   image?: string;
 }
 
@@ -130,16 +137,4 @@ export interface TopSellingPart {
 export interface SalesTrendPoint {
   day: string;
   sales: number;
-}
-
-export interface User {
-  user_id: number;
-  username: string;
-  password: string;
-  role: "admin" | "manager";
-  name: string;
-  email: string;
-  created_at: Date;
-  last_login: Date | null;
-  is_active?: number;  // ← ADD THIS
 }

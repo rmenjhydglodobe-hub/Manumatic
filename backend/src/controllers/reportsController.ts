@@ -30,7 +30,6 @@ export const getSalesOverview = async (
     }
 
     // Main stats
-    // ⚠️ COUNT(DISTINCT receipt_no) counts transactions, not rows
     const [statsRows] = await pool.execute(
       `SELECT
          COALESCE(SUM(total_price), 0)     AS total_revenue,
@@ -43,8 +42,7 @@ export const getSalesOverview = async (
 
     const stats = (statsRows as any[])[0];
 
-    // Per-day breakdown for the range
-    // ⚠️ DATE_FORMAT returns a plain string in Manila time — no JS Date conversion
+    // Per-day breakdown for the chart
     const [dailyRows] = await pool.execute(
       `SELECT
          DATE_FORMAT(sale_date, '%Y-%m-%d') AS day,
@@ -56,6 +54,35 @@ export const getSalesOverview = async (
        ORDER BY DATE(sale_date) ASC`,
     );
 
+    // ✅ NEW: Fetch detailed parts sold per day for the chart click interaction
+    const [partsByDayRows] = await pool.execute(
+      `SELECT
+         DATE_FORMAT(s.sale_date, '%Y-%m-%d') AS day,
+         p.part_id,
+         p.part_number,
+         p.name,
+         SUM(s.quantity)    AS quantity_sold,
+         SUM(s.total_price) AS revenue
+       FROM sales s
+       JOIN parts p ON s.part_id = p.part_id
+       WHERE ${dateFilter}
+       GROUP BY DATE(s.sale_date), p.part_id, p.part_number, p.name
+       ORDER BY DATE(s.sale_date) ASC, quantity_sold DESC`,
+    );
+
+    // Group the flat rows into a structure the frontend can easily consume
+    const partsByDay: Record<string, any[]> = {};
+    (partsByDayRows as any[]).forEach((row) => {
+      if (!partsByDay[row.day]) partsByDay[row.day] = [];
+      partsByDay[row.day].push({
+        part_id: row.part_id,
+        part_number: row.part_number,
+        name: row.name,
+        quantity_sold: Number(row.quantity_sold),
+        revenue: Number(row.revenue),
+      });
+    });
+
     res.json({
       range,
       total_revenue: Number(stats.total_revenue),
@@ -63,10 +90,11 @@ export const getSalesOverview = async (
       unique_parts_sold: Number(stats.unique_parts_sold),
       avg_transaction: Number(stats.avg_transaction),
       daily: (dailyRows as any[]).map((d) => ({
-        // Already a plain "YYYY-MM-DD" string from MySQL — no conversion
         day: d.day,
         revenue: Number(d.revenue),
         transactions: Number(d.transactions),
+        // ✅ Attach the daily breakdown directly to the chart data point
+        parts_sold: partsByDay[d.day] || [],
       })),
     });
   } catch (error) {

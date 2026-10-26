@@ -83,7 +83,7 @@
 
 .inv-search__input {
   width: 100%;
-  padding: 9px 12px 9px 34px;
+  padding: 0 12px 0 34px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 13px;
@@ -92,6 +92,7 @@
   outline: none;
   font-family: inherit;
   transition: border-color 0.15s;
+  height: 40px;
 }
 
 .inv-search__input::placeholder {
@@ -109,7 +110,7 @@
   background: #0f6b5c;
   color: #ffffff;
   border: none;
-  padding: 9px 16px;
+  padding: 0 16px;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
@@ -119,6 +120,7 @@
     background-color 0.15s,
     transform 0.1s;
   white-space: nowrap;
+  height: 40px;
 }
 
 .inv-add-btn:hover {
@@ -146,8 +148,6 @@
   table-layout: auto;
 }
 
-/* ---- HEADER ---- */
-
 .inv-table thead th {
   text-align: left;
   font-size: 10px;
@@ -165,8 +165,6 @@
 .inv-table thead th.inv-right {
   text-align: right;
 }
-
-/* ---- BODY ---- */
 
 .inv-table tbody tr {
   border-bottom: 1px solid #f3f4f6;
@@ -191,8 +189,6 @@
 .inv-table tbody tr:last-child {
   border-bottom: none;
 }
-
-/* ---- SPECIAL CELLS ---- */
 
 .inv-mono {
   font-family: "SF Mono", Monaco, Consolas, monospace;
@@ -347,7 +343,7 @@
 .adj-form {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
 }
 
 .adj-group {
@@ -364,7 +360,7 @@
 
 .adj-input,
 .adj-select {
-  padding: 10px 12px;
+  padding: 0 12px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 13px;
@@ -373,6 +369,7 @@
   outline: none;
   font-family: inherit;
   transition: border-color 0.15s;
+  height: 40px;
 }
 
 .adj-input:focus,
@@ -380,9 +377,11 @@
   border-color: #0f6b5c;
 }
 
-.adj-input {
+textarea.adj-input {
+  padding: 10px 12px;
+  height: auto;
+  min-height: 60px;
   resize: vertical;
-  min-height: 44px;
 }
 
 .adj-toggle {
@@ -399,7 +398,8 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 9px 12px;
+  padding: 0;
+  height: 36px;
   background: transparent;
   border: none;
   border-radius: 6px;
@@ -460,7 +460,8 @@
 }
 
 .adj-submit {
-  padding: 11px 16px;
+  padding: 0 16px;
+  height: 44px;
   background: #0f6b5c;
   color: #ffffff;
   border: none;
@@ -499,8 +500,6 @@
   flex-direction: column;
   gap: 16px;
 }
-
-/* ---------- Alert Banner ---------- */
 
 .avail-alert {
   display: flex;
@@ -547,8 +546,6 @@
 .avail-alert__action:hover {
   background: #fdf3d4;
 }
-
-/* ---------- Toolbar (Search + 3 Filters) ---------- */
 
 .avail-toolbar {
   display: grid;
@@ -643,8 +640,6 @@
   border-color: #0f6b5c;
   box-shadow: 0 0 0 3px rgba(15, 107, 92, 0.1);
 }
-
-/* ---------- Parts List ---------- */
 
 .avail-list {
   display: flex;
@@ -778,7 +773,8 @@
 
 .settings-save {
   align-self: flex-start;
-  padding: 10px 20px;
+  padding: 0 20px;
+  height: 40px;
   background: #0f6b5c;
   color: #ffffff;
   border: none;
@@ -795,7 +791,6 @@
   background: #0b5347;
 }
 
-/* User list */
 .user-list {
   list-style: none;
   padding: 0;
@@ -923,7 +918,7 @@
 }
 
 .modal--small {
-  max-width: 420px;
+  max-width: 460px;
 }
 
 .modal-header {
@@ -984,8 +979,9 @@
 }
 
 .form-group input,
-.form-group textarea {
-  padding: 10px 12px;
+.form-group textarea,
+.form-group select {
+  padding: 0 12px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 13px;
@@ -994,16 +990,20 @@
   outline: none;
   font-family: inherit;
   transition: border-color 0.15s;
-}
-
-.form-group input:focus,
-.form-group textarea:focus {
-  border-color: #0f6b5c;
+  height: 40px;
 }
 
 .form-group textarea {
+  padding: 10px 12px;
+  height: auto;
   resize: vertical;
   min-height: 60px;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  border-color: #0f6b5c;
 }
 
 .modal-error {
@@ -1026,7 +1026,6 @@
   margin-top: 8px;
 }
 
-/* Reset password context box */
 .reset-context {
   padding: 12px 14px;
   background: #f9fafb;
@@ -1042,12 +1041,12 @@
   font-weight: 700;
 }
 
-/* Buttons */
 .btn-primary {
   background: #0f6b5c;
   color: #ffffff;
   border: none;
-  padding: 10px 20px;
+  padding: 0 20px;
+  height: 40px;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
@@ -1069,7 +1068,8 @@
   background: #ffffff;
   color: #4b5563;
   border: 1px solid #e5e7eb;
-  padding: 10px 20px;
+  padding: 0 20px;
+  height: 40px;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
@@ -1081,67 +1081,6 @@
 .btn-secondary:hover {
   background: #f9fafb;
 }
-
-/* ============================================================
-   RESPONSIVE
-   ============================================================ */
-
-@media (max-width: 900px) {
-  .avail-toolbar {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .avail-toolbar__search {
-    grid-column: 1 / -1;
-  }
-}
-
-@media (max-width: 768px) {
-  .inv-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .inv-search {
-    max-width: 100%;
-  }
-
-  .inv-add-btn {
-    justify-content: center;
-  }
-
-  .inv-table {
-    font-size: 12px;
-  }
-
-  .inv-table thead th,
-  .inv-table tbody td {
-    padding: 10px 8px;
-  }
-
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 600px) {
-  .avail-toolbar {
-    grid-template-columns: 1fr;
-  }
-
-  .avail-alert {
-    flex-wrap: wrap;
-  }
-
-  .avail-alert__action {
-    width: 100%;
-    margin-top: 4px;
-  }
-}
-
-/* ============================================================
-   PASSWORD INPUT WITH EYE TOGGLE
-   ============================================================ */
 
 .pw-input-wrap {
   position: relative;
@@ -1178,25 +1117,170 @@
   background: #f3f4f6;
 }
 
+@media (max-width: 900px) {
+  .avail-toolbar {
+    grid-template-columns: 1fr 1fr;
+  }
+  .avail-toolbar__search {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 768px) {
+  .inv-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .inv-search {
+    max-width: 100%;
+  }
+  .inv-add-btn {
+    justify-content: center;
+  }
+  .inv-table {
+    font-size: 12px;
+  }
+  .inv-table thead th,
+  .inv-table tbody td {
+    padding: 10px 8px;
+  }
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .avail-toolbar {
+    grid-template-columns: 1fr;
+  }
+  .avail-alert {
+    flex-wrap: wrap;
+  }
+  .avail-alert__action {
+    width: 100%;
+    margin-top: 4px;
+  }
+}
+
 /* ============================================================
-   RESET PASSWORD MODAL ENHANCEMENTS
+   CATALOG SORTING CONTROLS
    ============================================================ */
 
-.modal--small {
-  max-width: 460px;
+.inv-sort-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
-.reset-context {
-  padding: 12px 14px;
-  background: #f0f9f7;
-  border: 1px solid #d1e9e4;
+.inv-sort-pill {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
-  font-size: 13px;
-  color: #0f4d43;
-  line-height: 1.5;
+  padding: 0 8px;
+  height: 40px;
+  transition: border-color 0.15s;
 }
 
-.reset-context strong {
-  color: #0f6b5c;
+.inv-sort-pill:focus-within {
+  border-color: #0f6b5c;
+}
+
+.inv-sort-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  margin-right: 8px;
+  letter-spacing: 0.05em;
+}
+
+.inv-sort-select {
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: #111827;
+  outline: none;
+  cursor: pointer;
+  font-family: inherit;
+  padding-right: 4px;
+}
+
+/* Responsive adjustments for sorting */
+@media (max-width: 1024px) {
+  .inv-toolbar {
+    flex-wrap: wrap;
+  }
+  .inv-sort-group {
+    width: 100%;
+    margin-top: 10px;
+  }
+  .inv-sort-pill {
+    flex: 1;
+  }
+}
+
+/* ============================================================
+   UNIFIED CATALOG SORTING PILLS (3 Separate)
+   ============================================================ */
+
+.inv-sort-group {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.inv-sort-pill {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0 12px;
+  height: 40px;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.inv-sort-pill:focus-within {
+  border-color: #0f6b5c;
+  box-shadow: 0 0 0 3px rgba(15, 107, 92, 0.1);
+}
+
+.inv-sort-label {
+  font-size: 11px;
   font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  margin-right: 8px;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.inv-sort-select {
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  outline: none;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0 4px 0 0;
+}
+
+/* Responsive adjustment for the toolbar to wrap nicely */
+@media (max-width: 1200px) {
+  .inv-sort-group {
+    width: 100%;
+    margin-top: 10px;
+  }
+  .inv-sort-pill {
+    flex: 1;
+    min-width: 150px;
+  }
 }

@@ -20,6 +20,7 @@ import {
   Power,
   Eye,
   EyeOff,
+  ArrowDownToLine,
 } from "lucide-react";
 import {
   getAllParts,
@@ -31,6 +32,7 @@ import {
   createUser,
   resetUserPassword,
   toggleUserActive,
+  receiveStock,
 } from "../../services/api";
 import { Part } from "../../types";
 import "./Inventory.css";
@@ -40,6 +42,13 @@ import "./Inventory.css";
 // ============================================================
 
 type Tab = "catalog" | "adjustments" | "availability" | "settings";
+
+// Split sort types for individual columns
+type NameSort = "name-asc" | "name-desc";
+type PriceSort = "price-asc" | "price-desc" | "none";
+type StockSort = "qty-asc" | "qty-desc" | "low-first" | "none";
+
+// Combined type for Availability tab (keeps the old behavior)
 type SortOption =
   | "name-asc"
   | "name-desc"
@@ -48,6 +57,7 @@ type SortOption =
   | "qty-asc"
   | "qty-desc"
   | "low-first";
+
 type StockFilter = "all" | "in" | "low" | "out";
 
 interface ToastState {
@@ -97,11 +107,29 @@ export default function Inventory() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
 
+  // ✅ Split sort states
+  const [nameSort, setNameSort] = useState<NameSort>("name-asc");
+  const [priceSort, setPriceSort] = useState<PriceSort>("none");
+  const [stockSort, setStockSort] = useState<StockSort>("none");
+
   // ---- Part Modal ----
   const [showModal, setShowModal] = useState(false);
   const [editingPart, setEditingPart] = useState<Part | null>(null);
   const [saving, setSaving] = useState(false);
   const [modalError, setModalError] = useState("");
+
+  // ---- Receive Supply Modal ----
+  const [showReceiveModal, setShowReceiveModal] = useState(false);
+  const [receiveTarget, setReceiveTarget] = useState<Part | null>(null);
+  const [receiveForm, setReceiveForm] = useState({
+    quantity: "",
+    cost_per_unit: "",
+    markup_percent: "",
+    manual_price: "",
+    supplier: "",
+  });
+  const [receiveSaving, setReceiveSaving] = useState(false);
+  const [receiveError, setReceiveError] = useState("");
 
   // ---- Delete ----
   const [confirmTarget, setConfirmTarget] = useState<Part | null>(null);
@@ -117,17 +145,35 @@ export default function Inventory() {
     category: "",
     description: "",
     price: "",
+    cost_price: "",
+    markup_percent: "20",
     reorder_level: "10",
     quantity: "0",
     location: "",
+    supplier: "",
   });
 
   // ---- Stock Adjustment ----
+  const [adjMode, setAdjMode] = useState<"existing" | "new">("existing");
   const [adjPart, setAdjPart] = useState<number | "">("");
   const [adjType, setAdjType] = useState<"in" | "out">("in");
   const [adjQty, setAdjQty] = useState("1");
   const [adjReason, setAdjReason] = useState(REASONS_IN[0]);
   const [adjNotes, setAdjNotes] = useState("");
+
+  // Pricing fields for Stock In (now includes Name, Category, Supplier)
+  const [adjName, setAdjName] = useState("");
+  const [adjCategory, setAdjCategory] = useState("");
+  const [adjCost, setAdjCost] = useState("");
+  const [adjMarkup, setAdjMarkup] = useState("");
+  const [adjSupplier, setAdjSupplier] = useState("");
+
+  // New Part fields (for Create New mode)
+  const [newPartNumber, setNewPartNumber] = useState("");
+  const [newName, setNewName] = useState("");
+  const [newCategory, setNewCategory] = useState("");
+  const [newSupplier, setNewSupplier] = useState("");
+
   const [adjSaving, setAdjSaving] = useState(false);
   const [adjError, setAdjError] = useState("");
 
@@ -195,6 +241,40 @@ export default function Inventory() {
     setAdjReason(adjType === "in" ? REASONS_IN[0] : REASONS_OUT[0]);
   }, [adjType]);
 
+  // Populate ALL fields when the selected part changes in the adjustments tab
+  useEffect(() => {
+    if (adjMode === "existing" && adjPart) {
+      const p = parts.find((x) => x.part_id === adjPart);
+      if (p) {
+        setAdjName(p.name);
+        setAdjCategory(p.category);
+        setAdjCost(p.cost_price?.toString() || "0");
+        setAdjMarkup(p.markup_percent?.toString() || "20");
+        setAdjSupplier(p.supplier || "");
+      }
+    } else {
+      setAdjName("");
+      setAdjCategory("");
+      setAdjCost("");
+      setAdjMarkup("");
+      setAdjSupplier("");
+    }
+  }, [adjPart, parts, adjMode]);
+
+  // Auto-calculate selling price in the Add/Edit form
+  useEffect(() => {
+    const cost = parseFloat(form.cost_price) || 0;
+    const markup = parseFloat(form.markup_percent) || 0;
+    const calculatedPrice = cost * (1 + markup / 100);
+
+    if (
+      form.price !== calculatedPrice.toString() &&
+      (cost > 0 || form.price === "")
+    ) {
+      setForm((prev) => ({ ...prev, price: calculatedPrice.toString() }));
+    }
+  }, [form.cost_price, form.markup_percent]);
+
   // ============================================================
   // FETCHERS
   // ============================================================
@@ -229,6 +309,29 @@ export default function Inventory() {
   };
 
   // ============================================================
+  // SORTING LOGIC
+  // ============================================================
+
+  const handleSortChange = (
+    type: "name" | "price" | "stock",
+    value: string,
+  ) => {
+    if (type === "name") {
+      setNameSort(value as NameSort);
+      setPriceSort("none");
+      setStockSort("none");
+    } else if (type === "price") {
+      setPriceSort(value as PriceSort);
+      setNameSort("name-asc");
+      setStockSort("none");
+    } else if (type === "stock") {
+      setStockSort(value as StockSort);
+      setNameSort("name-asc");
+      setPriceSort("none");
+    }
+  };
+
+  // ============================================================
   // PART CRUD
   // ============================================================
 
@@ -240,9 +343,12 @@ export default function Inventory() {
       category: "",
       description: "",
       price: "",
+      cost_price: "",
+      markup_percent: "20",
       reorder_level: "10",
       quantity: "0",
       location: "",
+      supplier: "",
     });
     setModalError("");
     setShowModal(true);
@@ -256,9 +362,12 @@ export default function Inventory() {
       category: part.category,
       description: part.description || "",
       price: String(part.price),
+      cost_price: String(part.cost_price || ""),
+      markup_percent: String(part.markup_percent || "20"),
       reorder_level: String(part.reorder_level),
       quantity: String(part.quantity),
       location: part.location || "",
+      supplier: part.supplier || "",
     });
     setModalError("");
     setShowModal(true);
@@ -312,25 +421,72 @@ export default function Inventory() {
   };
 
   // ============================================================
+  // RECEIVE SUPPLY (FROM CATALOG ACTION BUTTON)
+  // ============================================================
+
+  const openReceiveModal = (part: Part) => {
+    setReceiveTarget(part);
+    setReceiveForm({
+      quantity: "",
+      cost_per_unit: part.cost_price?.toString() || "0",
+      markup_percent: part.markup_percent?.toString() || "20",
+      manual_price: "",
+      supplier: part.supplier || "",
+    });
+    setReceiveError("");
+    setShowReceiveModal(true);
+  };
+
+  const handleReceiveSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!receiveTarget) return;
+    setReceiveError("");
+    setReceiveSaving(true);
+
+    try {
+      await receiveStock({
+        part_id: receiveTarget.part_id,
+        quantity: parseInt(receiveForm.quantity),
+        cost_per_unit: parseFloat(receiveForm.cost_per_unit),
+        markup_percent: parseFloat(receiveForm.markup_percent),
+        manual_price: receiveForm.manual_price
+          ? parseFloat(receiveForm.manual_price)
+          : undefined,
+        supplier: receiveForm.supplier || undefined,
+      });
+      showToast(`Received stock for "${receiveTarget.name}".`, "success");
+      setShowReceiveModal(false);
+      await fetchParts();
+    } catch (err: any) {
+      setReceiveError(
+        err.response?.data?.message || "Failed to receive stock.",
+      );
+    } finally {
+      setReceiveSaving(false);
+    }
+  };
+
+  // ============================================================
   // STOCK ADJUSTMENT
   // ============================================================
 
   const selectedPart = parts.find((p) => p.part_id === adjPart);
   const adjQtyNum = parseInt(adjQty) || 0;
 
-  const projectedQty = selectedPart
-    ? adjType === "in"
-      ? selectedPart.quantity + adjQtyNum
-      : Math.max(0, selectedPart.quantity - adjQtyNum)
-    : 0;
-
   const handleAdjustSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setAdjError("");
 
-    if (!selectedPart) {
+    if (adjMode === "existing" && !selectedPart) {
       setAdjError("Please select a part.");
       return;
+    }
+
+    if (adjMode === "new") {
+      if (!newPartNumber || !newName || !newCategory) {
+        setAdjError("Part Number, Name, and Category are required.");
+        return;
+      }
     }
 
     if (adjQtyNum <= 0) {
@@ -338,7 +494,11 @@ export default function Inventory() {
       return;
     }
 
-    if (adjType === "out" && adjQtyNum > selectedPart.quantity) {
+    if (
+      adjType === "out" &&
+      selectedPart &&
+      adjQtyNum > selectedPart.quantity
+    ) {
       setAdjError(
         `Cannot remove ${adjQtyNum} units. Only ${selectedPart.quantity} in stock.`,
       );
@@ -347,26 +507,129 @@ export default function Inventory() {
 
     setAdjSaving(true);
     try {
-      await adjustStock({
-        part_id: selectedPart.part_id,
-        type: adjType,
-        quantity: adjQtyNum,
-        reason: adjReason,
-        notes: adjNotes || undefined,
-      });
+      if (adjMode === "new") {
+        const newPrice =
+          (parseFloat(adjCost) || 0) * (1 + (parseFloat(adjMarkup) || 0) / 100);
 
-      showToast(
-        `${adjType === "in" ? "Added" : "Removed"} ${adjQtyNum} unit(s) ${
-          adjType === "in" ? "to" : "from"
-        } "${selectedPart.name}".`,
-        "success",
-      );
+        await createPart({
+          part_number: newPartNumber,
+          name: newName,
+          category: newCategory,
+          description: "",
+          price: newPrice.toString(),
+          cost_price: adjCost,
+          markup_percent: adjMarkup,
+          reorder_level: "10",
+          quantity: adjQty,
+          location: "",
+          supplier: adjSupplier || newSupplier,
+        });
+        showToast(
+          `New part "${newName}" created with ${adjQty} units.`,
+          "success",
+        );
+        setAdjMode("existing");
+        setNewPartNumber("");
+        setNewName("");
+        setNewCategory("");
+        setNewSupplier("");
+      } else if (adjType === "in" && selectedPart) {
+        const newCost = parseFloat(adjCost) || 0;
+        const newMarkup = parseFloat(adjMarkup) || 0;
+
+        // ✅ 1.5 Detect Changes across all relevant fields
+        const isCostChanged = Number(selectedPart.cost_price) !== newCost;
+        const isMarkupChanged =
+          Number(selectedPart.markup_percent) !== newMarkup;
+        const isSupplierChanged = (selectedPart.supplier || "") !== adjSupplier;
+        const isCategoryChanged = selectedPart.category !== adjCategory;
+        const isNameChanged = selectedPart.name !== adjName;
+
+        const hasChanged =
+          isCostChanged ||
+          isMarkupChanged ||
+          isSupplierChanged ||
+          isCategoryChanged ||
+          isNameChanged;
+
+        if (hasChanged) {
+          // ✅ 1.1, 1.3, 1.4 Professional Clone Logic
+          // Extract base part number (remove any existing -V1, -V2, etc.)
+          const basePartNumber = selectedPart.part_number.split("-V")[0];
+
+          // Find how many variants of this base part already exist to generate the next number
+          const existingVariants = parts.filter((p) =>
+            p.part_number.startsWith(basePartNumber + "-V"),
+          );
+          let nextVersionNum = 1;
+
+          if (existingVariants.length > 0) {
+            const highestVersion = Math.max(
+              ...existingVariants.map((v) => {
+                const match = v.part_number.match(/-V(\d+)$/);
+                return match ? parseInt(match[1]) : 0;
+              }),
+            );
+            nextVersionNum = highestVersion + 1;
+          }
+
+          const newPartNumberStr = `${basePartNumber}-V${nextVersionNum}`;
+
+          // ✅ 1.4 Extract base name (remove any existing (v1), (v2), etc.) and append the new version number
+          const baseName = selectedPart.name.replace(/\s*\(v\d+\)$/, "");
+          const newNameStr = `${baseName} (v${nextVersionNum})`;
+
+          await createPart({
+            part_number: newPartNumberStr,
+            name: newNameStr, // Use the new modified name
+            category: adjCategory, // Use the new modified category
+            description: selectedPart.description || "",
+            price: (newCost * (1 + newMarkup / 100)).toString(),
+            cost_price: newCost.toString(),
+            markup_percent: newMarkup.toString(),
+            reorder_level: selectedPart.reorder_level.toString(),
+            quantity: adjQtyNum.toString(),
+            location: selectedPart.location || "",
+            supplier: adjSupplier, // Use the new modified supplier
+          });
+          showToast(
+            `Details changed. Created new variant: "${newNameStr}".`,
+            "success",
+          );
+        } else {
+          // ✅ 1.2 No changes detected, just add stock to existing
+          await receiveStock({
+            part_id: selectedPart.part_id,
+            quantity: adjQtyNum,
+            cost_per_unit: newCost,
+            markup_percent: newMarkup,
+            supplier: adjSupplier || undefined,
+          });
+          showToast(
+            `Added ${adjQtyNum} units to "${selectedPart.name}".`,
+            "success",
+          );
+        }
+      } else if (selectedPart) {
+        // STOCK OUT LOGIC
+        await adjustStock({
+          part_id: selectedPart.part_id,
+          type: adjType,
+          quantity: adjQtyNum,
+          reason: adjReason,
+          notes: adjNotes || undefined,
+        });
+        showToast(
+          `Removed ${adjQtyNum} unit(s) from "${selectedPart.name}".`,
+          "success",
+        );
+      }
 
       setAdjQty("1");
       setAdjNotes("");
       await fetchParts();
     } catch (err: any) {
-      setAdjError(err.response?.data?.message || "Failed to adjust stock.");
+      setAdjError(err.response?.data?.message || "Failed to process.");
     } finally {
       setAdjSaving(false);
     }
@@ -573,14 +836,44 @@ export default function Inventory() {
   // HELPERS
   // ============================================================
 
-  const filtered = parts.filter((p) => {
-    const q = search.toLowerCase();
-    return (
-      p.name.toLowerCase().includes(q) ||
-      p.part_number.toLowerCase().includes(q) ||
-      p.category.toLowerCase().includes(q)
-    );
-  });
+  const filtered = useMemo(() => {
+    let list = parts.filter((p) => {
+      const q = search.toLowerCase();
+      return (
+        p.name.toLowerCase().includes(q) ||
+        p.part_number.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q)
+      );
+    });
+
+    if (stockSort !== "none") {
+      list.sort((a, b) => {
+        if (stockSort === "qty-asc") return a.quantity - b.quantity;
+        if (stockSort === "qty-desc") return b.quantity - a.quantity;
+        if (stockSort === "low-first") {
+          const aLow = a.quantity <= a.reorder_level ? 0 : 1;
+          const bLow = b.quantity <= b.reorder_level ? 0 : 1;
+          if (aLow !== bLow) return aLow - bLow;
+          return a.quantity - b.quantity;
+        }
+        return 0;
+      });
+    } else if (priceSort !== "none") {
+      list.sort((a, b) => {
+        if (priceSort === "price-asc") return a.price - b.price;
+        if (priceSort === "price-desc") return b.price - a.price;
+        return 0;
+      });
+    } else {
+      list.sort((a, b) => {
+        if (nameSort === "name-asc") return a.name.localeCompare(b.name);
+        if (nameSort === "name-desc") return b.name.localeCompare(a.name);
+        return 0;
+      });
+    }
+
+    return list;
+  }, [parts, search, nameSort, priceSort, stockSort]);
 
   const money = (n: number) =>
     "₱" + n.toLocaleString("en-PH", { minimumFractionDigits: 2 });
@@ -656,6 +949,56 @@ export default function Inventory() {
                     className="inv-search__input"
                   />
                 </div>
+
+                {/* ✅ 3 Separate Sort Pills */}
+                <div className="inv-sort-group">
+                  {/* Name Sort */}
+                  <div className="inv-sort-pill">
+                    <span className="inv-sort-label">Name</span>
+                    <select
+                      value={nameSort}
+                      onChange={(e) => handleSortChange("name", e.target.value)}
+                      className="inv-sort-select"
+                    >
+                      <option value="name-asc">A–Z</option>
+                      <option value="name-desc">Z–A</option>
+                    </select>
+                  </div>
+
+                  {/* Price Sort */}
+                  <div className="inv-sort-pill">
+                    <span className="inv-sort-label">Price</span>
+                    <select
+                      value={priceSort}
+                      onChange={(e) =>
+                        handleSortChange("price", e.target.value)
+                      }
+                      className="inv-sort-select"
+                    >
+                      <option value="none">Default</option>
+                      <option value="price-asc">Low → High</option>
+                      <option value="price-desc">High → Low</option>
+                    </select>
+                  </div>
+
+                  {/* Stock Sort */}
+                  <div className="inv-sort-pill">
+                    <span className="inv-sort-label">Stock</span>
+                    <select
+                      value={stockSort}
+                      onChange={(e) =>
+                        handleSortChange("stock", e.target.value)
+                      }
+                      className="inv-sort-select"
+                    >
+                      <option value="none">Default</option>
+                      <option value="qty-asc">Low → High</option>
+                      <option value="qty-desc">High → Low</option>
+                      <option value="low-first">⚠️ Low First</option>
+                    </select>
+                  </div>
+                </div>
+
                 <button
                   type="button"
                   className="inv-add-btn"
@@ -680,6 +1023,7 @@ export default function Inventory() {
                       <tr>
                         <th>PART #</th>
                         <th>NAME</th>
+                        <th>SUPPLIER</th>
                         <th>CATEGORY</th>
                         <th className="inv-right">PRICE</th>
                         <th className="inv-right">STOCK</th>
@@ -694,6 +1038,7 @@ export default function Inventory() {
                           <tr key={part.part_id}>
                             <td className="inv-mono">{part.part_number}</td>
                             <td>{part.name}</td>
+                            <td>{part.supplier || "-"}</td>
                             <td>
                               <span
                                 className={`inv-cat ${getCategoryClass(
@@ -720,6 +1065,14 @@ export default function Inventory() {
                                   title="Adjust stock"
                                 >
                                   <Sliders size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="inv-icon-btn"
+                                  onClick={() => openReceiveModal(part)}
+                                  title="Receive Supply"
+                                >
+                                  <ArrowDownToLine size={14} />
                                 </button>
                                 <button
                                   type="button"
@@ -757,26 +1110,108 @@ export default function Inventory() {
           {activeTab === "adjustments" && (
             <div className="adj-layout adj-layout--centered">
               <div className="adj-form-card">
-                <h2 className="adj-title">Adjust stock quantity</h2>
+                <h2 className="adj-title">Stock Adjustments</h2>
+
+                <div
+                  className="adj-mode-toggle"
+                  style={{ display: "flex", gap: "10px", marginBottom: "20px" }}
+                >
+                  <button
+                    type="button"
+                    className={`btn-secondary ${adjMode === "existing" ? "is-active" : ""}`}
+                    onClick={() => setAdjMode("existing")}
+                    style={{
+                      flex: 1,
+                      backgroundColor: adjMode === "existing" ? "#0f6b5c" : "",
+                      color: adjMode === "existing" ? "#fff" : "",
+                    }}
+                  >
+                    Select Existing
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn-secondary ${adjMode === "new" ? "is-active" : ""}`}
+                    onClick={() => setAdjMode("new")}
+                    style={{
+                      flex: 1,
+                      backgroundColor: adjMode === "new" ? "#0f6b5c" : "",
+                      color: adjMode === "new" ? "#fff" : "",
+                    }}
+                  >
+                    Create New Part
+                  </button>
+                </div>
+
                 <form onSubmit={handleAdjustSubmit} className="adj-form">
-                  <div className="adj-group">
-                    <label>Part</label>
-                    <select
-                      value={adjPart}
-                      onChange={(e) =>
-                        setAdjPart(e.target.value ? Number(e.target.value) : "")
-                      }
-                      className="adj-select"
-                      required
-                    >
-                      <option value="">— Select a part —</option>
-                      {parts.map((p) => (
-                        <option key={p.part_id} value={p.part_id}>
-                          {p.name} ({p.part_number}) — {p.quantity} in stock
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {adjMode === "existing" ? (
+                    <div className="adj-group">
+                      <label>Part</label>
+                      <select
+                        value={adjPart}
+                        onChange={(e) =>
+                          setAdjPart(
+                            e.target.value ? Number(e.target.value) : "",
+                          )
+                        }
+                        className="adj-select"
+                        required
+                      >
+                        <option value="">— Select a part —</option>
+                        {parts.map((p) => (
+                          <option key={p.part_id} value={p.part_id}>
+                            {p.name} ({p.supplier || "No Supplier"}) —{" "}
+                            {p.quantity} in stock
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="form-row">
+                        <div className="adj-group">
+                          <label>Part Number *</label>
+                          <input
+                            type="text"
+                            value={newPartNumber}
+                            onChange={(e) => setNewPartNumber(e.target.value)}
+                            className="adj-input"
+                            required
+                          />
+                        </div>
+                        <div className="adj-group">
+                          <label>Name *</label>
+                          <input
+                            type="text"
+                            value={newName}
+                            onChange={(e) => setNewName(e.target.value)}
+                            className="adj-input"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div className="form-row">
+                        <div className="adj-group">
+                          <label>Category *</label>
+                          <input
+                            type="text"
+                            value={newCategory}
+                            onChange={(e) => setNewCategory(e.target.value)}
+                            className="adj-input"
+                            required
+                          />
+                        </div>
+                        <div className="adj-group">
+                          <label>Supplier</label>
+                          <input
+                            type="text"
+                            value={newSupplier}
+                            onChange={(e) => setNewSupplier(e.target.value)}
+                            className="adj-input"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
 
                   <div className="adj-toggle">
                     <button
@@ -785,18 +1220,23 @@ export default function Inventory() {
                         adjType === "in" ? "is-active-in" : ""
                       }`}
                       onClick={() => setAdjType("in")}
+                      style={{
+                        gridColumn: adjMode === "new" ? "span 2" : "span 1",
+                      }}
                     >
                       <PackagePlus size={14} /> Stock in
                     </button>
-                    <button
-                      type="button"
-                      className={`adj-toggle__btn ${
-                        adjType === "out" ? "is-active-out" : ""
-                      }`}
-                      onClick={() => setAdjType("out")}
-                    >
-                      <PackageMinus size={14} /> Stock out
-                    </button>
+                    {adjMode === "existing" && (
+                      <button
+                        type="button"
+                        className={`adj-toggle__btn ${
+                          adjType === "out" ? "is-active-out" : ""
+                        }`}
+                        onClick={() => setAdjType("out")}
+                      >
+                        <PackageMinus size={14} /> Stock out
+                      </button>
+                    )}
                   </div>
 
                   <div className="adj-group">
@@ -811,20 +1251,141 @@ export default function Inventory() {
                     />
                   </div>
 
-                  <div className="adj-group">
-                    <label>Reason</label>
-                    <select
-                      value={adjReason}
-                      onChange={(e) => setAdjReason(e.target.value)}
-                      className="adj-select"
-                    >
-                      {reasons.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {/* ✅ Added editable fields for Name, Category, Supplier to detect changes */}
+                  {adjType === "in" &&
+                    adjMode === "existing" &&
+                    selectedPart && (
+                      <>
+                        <div className="form-row">
+                          <div className="adj-group">
+                            <label>Name</label>
+                            <input
+                              type="text"
+                              value={adjName}
+                              onChange={(e) => setAdjName(e.target.value)}
+                              className="adj-input"
+                            />
+                          </div>
+                          <div className="adj-group">
+                            <label>Category</label>
+                            <input
+                              type="text"
+                              value={adjCategory}
+                              onChange={(e) => setAdjCategory(e.target.value)}
+                              className="adj-input"
+                            />
+                          </div>
+                        </div>
+                        <div className="form-row">
+                          <div className="adj-group">
+                            <label>Cost per Unit (₱)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={adjCost}
+                              onChange={(e) => setAdjCost(e.target.value)}
+                              className="adj-input"
+                            />
+                          </div>
+                          <div className="adj-group">
+                            <label>Markup (%)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={adjMarkup}
+                              onChange={(e) => setAdjMarkup(e.target.value)}
+                              className="adj-input"
+                            />
+                          </div>
+                        </div>
+                        <div className="adj-group">
+                          <label>Supplier</label>
+                          <input
+                            type="text"
+                            value={adjSupplier}
+                            onChange={(e) => setAdjSupplier(e.target.value)}
+                            placeholder="e.g. Bosch, Denso"
+                            className="adj-input"
+                          />
+                        </div>
+
+                        <div className="adj-preview">
+                          <span className="adj-preview__label">
+                            New Selling Price
+                          </span>
+                          <span className="adj-preview__value">
+                            <strong>
+                              {money(
+                                (parseFloat(adjCost) || 0) *
+                                  (1 + (parseFloat(adjMarkup) || 0) / 100),
+                              )}
+                            </strong>
+                          </span>
+                        </div>
+                      </>
+                    )}
+
+                  {adjType === "in" && adjMode === "new" && (
+                    <>
+                      <div className="form-row">
+                        <div className="adj-group">
+                          <label>Cost per Unit (₱)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={adjCost}
+                            onChange={(e) => setAdjCost(e.target.value)}
+                            className="adj-input"
+                          />
+                        </div>
+                        <div className="adj-group">
+                          <label>Markup (%)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={adjMarkup}
+                            onChange={(e) => setAdjMarkup(e.target.value)}
+                            className="adj-input"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="adj-preview">
+                        <span className="adj-preview__label">
+                          New Selling Price
+                        </span>
+                        <span className="adj-preview__value">
+                          <strong>
+                            {money(
+                              (parseFloat(adjCost) || 0) *
+                                (1 + (parseFloat(adjMarkup) || 0) / 100),
+                            )}
+                          </strong>
+                        </span>
+                      </div>
+                    </>
+                  )}
+
+                  {adjType === "out" && (
+                    <div className="adj-group">
+                      <label>Reason</label>
+                      <select
+                        value={adjReason}
+                        onChange={(e) => setAdjReason(e.target.value)}
+                        className="adj-select"
+                      >
+                        {reasons.map((r) => (
+                          <option key={r} value={r}>
+                            {r}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   <div className="adj-group">
                     <label>Notes (optional)</label>
@@ -837,26 +1398,18 @@ export default function Inventory() {
                     />
                   </div>
 
-                  {selectedPart && adjQtyNum > 0 && (
-                    <div className="adj-preview">
-                      <span className="adj-preview__label">New stock</span>
-                      <span className="adj-preview__value">
-                        {selectedPart.quantity} →{" "}
-                        <strong
-                          className={
-                            projectedQty === 0
-                              ? "adj-preview__zero"
-                              : projectedQty <= selectedPart.reorder_level
-                                ? "adj-preview__low"
-                                : "adj-preview__ok"
-                          }
-                        >
-                          {projectedQty}
-                        </strong>{" "}
-                        units
-                      </span>
-                    </div>
-                  )}
+                  {adjMode === "existing" &&
+                    selectedPart &&
+                    adjType === "in" && (
+                      <div className="adj-preview">
+                        <span className="adj-preview__label">New stock</span>
+                        <span className="adj-preview__value">
+                          {selectedPart.quantity} →{" "}
+                          <strong>{selectedPart.quantity + adjQtyNum}</strong>{" "}
+                          units
+                        </span>
+                      </div>
+                    )}
 
                   {adjError && (
                     <div className="modal-error">
@@ -868,9 +1421,9 @@ export default function Inventory() {
                   <button
                     type="submit"
                     className="adj-submit"
-                    disabled={adjSaving || !selectedPart}
+                    disabled={adjSaving}
                   >
-                    {adjSaving ? "Applying..." : "Apply adjustment"}
+                    {adjSaving ? "Processing..." : "Apply adjustment"}
                   </button>
                 </form>
               </div>
@@ -1195,23 +1748,80 @@ export default function Inventory() {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Price (₱) *</label>
+                  <label>Supplier</label>
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={form.price}
+                    type="text"
+                    value={form.supplier}
                     onChange={(e) =>
-                      setForm({ ...form, price: e.target.value })
+                      setForm({ ...form, supplier: e.target.value })
                     }
-                    required
+                    placeholder="e.g. Bosch, Denso"
                   />
                 </div>
               </div>
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>Quantity</label>
+                  <label>Cost Price (₱)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.cost_price}
+                    onChange={(e) =>
+                      setForm({ ...form, cost_price: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Markup (%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.markup_percent}
+                    onChange={(e) =>
+                      setForm({ ...form, markup_percent: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                {/* ✅ Replaced manual Selling Price input with a read-only calculated field */}
+                <div className="form-group">
+                  <label>Selling Price (₱) *</label>
+                  <input
+                    type="text"
+                    value={money(
+                      (parseFloat(form.cost_price) || 0) *
+                        (1 + (parseFloat(form.markup_percent) || 0) / 100),
+                    )}
+                    readOnly
+                    style={{
+                      backgroundColor: "#f9fafb",
+                      cursor: "not-allowed",
+                      fontWeight: "bold",
+                      color: "#0f6b5c",
+                    }}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Reorder Level</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.reorder_level}
+                    onChange={(e) =>
+                      setForm({ ...form, reorder_level: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Initial Quantity</label>
                   <input
                     type="number"
                     min="0"
@@ -1221,43 +1831,17 @@ export default function Inventory() {
                     }
                     disabled={!!editingPart}
                   />
-                  {editingPart && (
-                    <span
-                      style={{
-                        fontSize: 11,
-                        color: "#9ca3af",
-                        fontStyle: "italic",
-                      }}
-                    >
-                      Use Stock Adjustments to change quantity.
-                    </span>
-                  )}
                 </div>
                 <div className="form-group">
-                  <label>Reorder Level</label>
+                  <label>Location</label>
                   <input
-                    type="number"
-                    min="0"
-                    value={form.reorder_level}
+                    type="text"
+                    value={form.location}
                     onChange={(e) =>
-                      setForm({
-                        ...form,
-                        reorder_level: e.target.value,
-                      })
+                      setForm({ ...form, location: e.target.value })
                     }
                   />
                 </div>
-              </div>
-
-              <div className="form-group">
-                <label>Location</label>
-                <input
-                  type="text"
-                  value={form.location}
-                  onChange={(e) =>
-                    setForm({ ...form, location: e.target.value })
-                  }
-                />
               </div>
 
               <div className="form-group">
@@ -1285,6 +1869,165 @@ export default function Inventory() {
                     : editingPart
                       ? "Update Part"
                       : "Add Part"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= RECEIVE SUPPLY MODAL ================= */}
+      {showReceiveModal && receiveTarget && (
+        <div
+          className="modal-overlay"
+          onClick={() => !receiveSaving && setShowReceiveModal(false)}
+        >
+          <div
+            className="modal modal--small"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2>Receive Supply</h2>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => !receiveSaving && setShowReceiveModal(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form className="modal-form" onSubmit={handleReceiveSubmit}>
+              <div className="reset-context">
+                Receiving stock for <strong>{receiveTarget.name}</strong>.
+                Updating the cost and markup here will calculate a new selling
+                price.
+              </div>
+
+              {receiveError && (
+                <div className="modal-error">
+                  <AlertTriangle size={14} />
+                  {receiveError}
+                </div>
+              )}
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Quantity Received *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={receiveForm.quantity}
+                    onChange={(e) =>
+                      setReceiveForm({
+                        ...receiveForm,
+                        quantity: e.target.value,
+                      })
+                    }
+                    placeholder="e.g. 50"
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Supplier</label>
+                  <input
+                    type="text"
+                    value={receiveForm.supplier}
+                    onChange={(e) =>
+                      setReceiveForm({
+                        ...receiveForm,
+                        supplier: e.target.value,
+                      })
+                    }
+                    placeholder="Update supplier"
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Cost per Unit (₱) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={receiveForm.cost_per_unit}
+                    onChange={(e) =>
+                      setReceiveForm({
+                        ...receiveForm,
+                        cost_per_unit: e.target.value,
+                      })
+                    }
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Markup (%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={receiveForm.markup_percent}
+                    onChange={(e) =>
+                      setReceiveForm({
+                        ...receiveForm,
+                        markup_percent: e.target.value,
+                      })
+                    }
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Manual Price Override (₱) - Optional</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={receiveForm.manual_price}
+                  onChange={(e) =>
+                    setReceiveForm({
+                      ...receiveForm,
+                      manual_price: e.target.value,
+                    })
+                  }
+                  placeholder="Leave blank to use auto-markup"
+                />
+              </div>
+
+              <div className="adj-preview">
+                <span className="adj-preview__label">New Selling Price</span>
+                <span className="adj-preview__value">
+                  <strong>
+                    {money(
+                      receiveForm.manual_price
+                        ? parseFloat(receiveForm.manual_price)
+                        : (parseFloat(receiveForm.cost_per_unit) || 0) *
+                            (1 +
+                              (parseFloat(receiveForm.markup_percent) || 0) /
+                                100),
+                    )}
+                  </strong>
+                </span>
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowReceiveModal(false)}
+                  disabled={receiveSaving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={receiveSaving}
+                >
+                  {receiveSaving ? "Saving..." : "Receive Stock"}
                 </button>
               </div>
             </form>

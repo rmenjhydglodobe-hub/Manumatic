@@ -9,7 +9,7 @@ import { CreatePartBody, UpdatePartBody, AuthRequest } from "../types";
 export const getAllParts = async (
   _req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const parts = await inventoryService.getAllParts();
@@ -26,7 +26,7 @@ export const getAllParts = async (
 export const getPartById = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const id = Number(req.params.id);
@@ -50,7 +50,7 @@ export const getPartById = async (
 export const createPart = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const body = req.body as CreatePartBody;
@@ -58,7 +58,7 @@ export const createPart = async (
 
     res.status(201).json({
       message: "Part created successfully.",
-      part_id: result.part_id
+      part_id: result.part_id,
     });
   } catch (error) {
     next(error);
@@ -72,7 +72,7 @@ export const createPart = async (
 export const updatePart = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const id = Number(req.params.id);
@@ -98,7 +98,7 @@ export const updatePart = async (
 export const deletePart = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const id = Number(req.params.id);
@@ -123,7 +123,7 @@ export const deletePart = async (
 export const searchParts = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const q = req.query.q as string | undefined;
@@ -143,7 +143,7 @@ export const searchParts = async (
 export const getLowStock = async (
   _req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const parts = await inventoryService.getLowStockParts();
@@ -160,7 +160,7 @@ export const getLowStock = async (
 export const adjustStock = async (
   req: AuthRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     if (!req.user) {
@@ -172,7 +172,7 @@ export const adjustStock = async (
 
     res.json({
       message: "Stock adjusted successfully.",
-      ...result
+      ...result,
     });
   } catch (error) {
     next(error);
@@ -186,7 +186,7 @@ export const adjustStock = async (
 export const checkout = async (
   req: AuthRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     if (!req.user) {
@@ -194,14 +194,40 @@ export const checkout = async (
       return;
     }
 
-    const result = await inventoryService.checkout(
-      req.user.user_id,
-      req.body
-    );
+    const result = await inventoryService.checkout(req.user.user_id, req.body);
 
     res.status(201).json({
       message: "Sale completed successfully.",
-      ...result
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ============================================================
+// POST /api/inventory/receive
+// ============================================================
+
+export const receiveStock = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: "Not authenticated." });
+      return;
+    }
+
+    const result = await inventoryService.receiveStock(
+      req.user.user_id,
+      req.body,
+    );
+
+    res.json({
+      message: "Stock received successfully.",
+      ...result,
     });
   } catch (error) {
     next(error);

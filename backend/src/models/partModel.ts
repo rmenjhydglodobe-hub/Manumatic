@@ -52,27 +52,33 @@ export interface CreatePartInput {
   category: string;
   description: string | null;
   price: number;
+  cost_price: number;
+  markup_percent: number;
   reorder_level: number;
   quantity: number;
   location: string | null;
+  supplier: string | null;
   image: string | null;
 }
 
 export const create = async (data: CreatePartInput): Promise<number> => {
   const [result] = await pool.execute(
     `INSERT INTO parts
-      (part_number, name, category, description, price, reorder_level, quantity, location, image)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (part_number, name, category, description, price, cost_price, markup_percent, reorder_level, quantity, location, supplier, image)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       data.part_number,
       data.name,
       data.category,
       data.description,
       data.price,
+      data.cost_price,
+      data.markup_percent,
       data.reorder_level,
       data.quantity,
       data.location,
-      data.image
+      data.supplier,
+      data.image,
     ]
   );
 
@@ -95,9 +101,12 @@ export const update = async (data: UpdatePartInput): Promise<number> => {
       category = ?,
       description = ?,
       price = ?,
+      cost_price = ?,
+      markup_percent = ?,
       reorder_level = ?,
       quantity = ?,
       location = ?,
+      supplier = ?,
       image = ?
      WHERE part_id = ?`,
     [
@@ -106,11 +115,14 @@ export const update = async (data: UpdatePartInput): Promise<number> => {
       data.category,
       data.description,
       data.price,
+      data.cost_price,
+      data.markup_percent,
       data.reorder_level,
       data.quantity,
       data.location,
+      data.supplier,
       data.image,
-      data.part_id
+      data.part_id,
     ]
   );
 
@@ -131,7 +143,7 @@ export const remove = async (partId: number): Promise<number> => {
 };
 
 // ============================================================
-// SEARCH PARTS (by name / part_number / category)
+// SEARCH PARTS
 // ============================================================
 
 export const search = async (
@@ -168,20 +180,6 @@ export const findLowStock = async (): Promise<Part[]> => {
      ORDER BY quantity ASC`
   );
   return rows as Part[];
-};
-
-// ============================================================
-// DECREASE STOCK
-// ============================================================
-
-export const decreaseStock = async (
-  partId: number,
-  qty: number
-): Promise<void> => {
-  await pool.execute(
-    "UPDATE parts SET quantity = quantity - ? WHERE part_id = ?",
-    [qty, partId]
-  );
 };
 
 // ============================================================

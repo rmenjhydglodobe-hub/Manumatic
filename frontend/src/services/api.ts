@@ -269,6 +269,26 @@ export const adjustStock = async (data: {
 };
 
 // ============================================================
+// RECEIVE STOCK (Updates cost, price, and quantity)
+// ============================================================
+
+export const receiveStock = async (data: {
+  part_id: number;
+  quantity: number;
+  cost_per_unit: number;
+  markup_percent: number;
+  manual_price?: number;
+  supplier?: string;
+}) => {
+  if (USE_MOCK) {
+    await delay(300);
+    return { data: { message: "Mock mode: use real backend." } };
+  }
+
+  return api.post("/inventory/receive", data);
+};
+
+// ============================================================
 // USER MANAGEMENT (Admin only)
 // ============================================================
 
@@ -340,6 +360,7 @@ export const createSale = async (saleData: any) => {
 
   return api.post("/sales", saleData);
 };
+
 // ============================================================
 // CHECKOUT (POS — Cash Only)
 // ============================================================
